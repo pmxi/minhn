@@ -4,6 +4,6 @@
 
 min(HN) is designed to be used at most once a day. It displays the 10 highest-point Hacker News stories submitted in each Pacific calendar day. This is not configurable.
 
-GitHub Actions refreshes all seven days hourly and publishes one small ranking snapshot to GitHub Pages. Browsers fetch that file once; switching days requires no additional requests. Rankings reflect points at the last refresh, so recent days can still move as votes continue to come in.
+GitHub Actions is scheduled to refresh all seven days about hourly (runs can be delayed) and publishes one small ranking snapshot to GitHub Pages. Browsers fetch that file once; switching days requires no additional requests. Rankings reflect points at the last refresh, so recent days can still move as votes continue to come in.
 
 by Paras

@@ -5,7 +5,8 @@ on:
     branches:
       - master
   schedule:
-    - cron: '17 * * * *'
+    # More trigger opportunities when GitHub delays or drops scheduled events.
+    - cron: '7,27,47 * * * *'
   workflow_dispatch:
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
@@ -22,6 +23,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     environment:
       name: github-pages
@@ -39,17 +41,26 @@ jobs:
       - name: Test ranking generation
         run: python -m unittest discover -s tests -v
 
+      - name: Check whether a scheduled refresh is due
+        id: freshness
+        if: github.event_name == 'schedule'
+        run: echo "due=$(python -m scripts.refresh_due)" >> "$GITHUB_OUTPUT"
+
       - name: Build shared rankings
+        if: github.event_name != 'schedule' || steps.freshness.outputs.due == 'true'
         run: python scripts/build_rankings.py
 
       - name: Setup Pages
+        if: github.event_name != 'schedule' || steps.freshness.outputs.due == 'true'
         uses: actions/configure-pages@v4
 
       - name: Upload artifact
+        if: github.event_name != 'schedule' || steps.freshness.outputs.due == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: "./src"
 
       - name: Deploy to GitHub Pages
+        if: github.event_name != 'schedule' || steps.freshness.outputs.due == 'true'
         id: deployment
         uses: actions/deploy-pages@v4

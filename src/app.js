@@ -5,6 +5,22 @@ const statusText = document.getElementById("status");
 const updatedText = document.getElementById("updated");
 const headlinesList = document.getElementById("headlines");
 let rankingDays = new Map();
+let generatedAt = null;
+
+function updateFreshnessLabel() {
+  if (!generatedAt) return;
+  const updated = new Intl.DateTimeFormat("en-US", {
+    timeZone: PACIFIC_TIME_ZONE,
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(generatedAt));
+  const delayed = Date.now() - new Date(generatedAt).getTime() >= 2 * 60 * 60 * 1000;
+  updatedText.textContent = `Updated ${updated} PT · ${delayed
+    ? "This snapshot is over 2 hours old. Reload to check for updates."
+    : "Updates scheduled about hourly"}`;
+}
 
 function dateLabel(dateValue, options) {
   // The dates in the snapshot are already Pacific calendar dates. Format at
@@ -96,14 +112,8 @@ async function loadRankings() {
   }
   rankingDays = new Map(snapshot.days.map(({ date, stories }) => [date, stories]));
   buildDateLinks(snapshot.days);
-  const updated = new Intl.DateTimeFormat("en-US", {
-    timeZone: PACIFIC_TIME_ZONE,
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(snapshot.generatedAt));
-  updatedText.textContent = `Updated ${updated} PT · Refreshes hourly`;
+  generatedAt = snapshot.generatedAt;
+  updateFreshnessLabel();
   statusText.textContent = "";
   // Use the latest published day, including when a scheduled refresh is late.
   showDay(snapshot.days[snapshot.days.length - 1].date);
@@ -112,3 +122,6 @@ async function loadRankings() {
 loadRankings().catch((error) => {
   statusText.textContent = error instanceof Error ? error.message : "Failed to load rankings.";
 });
+
+// Keep the age warning accurate even when a reader leaves the tab open.
+setInterval(updateFreshnessLabel, 60 * 1000);
