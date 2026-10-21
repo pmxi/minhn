@@ -33,7 +33,7 @@ test("late responses and errors cannot replace the selected day; same-day clicks
     await new Promise(setImmediate);
   };
   try {
-    await import("../src/app.js");
+    await import("../src/app.mjs");
     click("2026-10-20");
     await respond(requests[1], "Selected day");
     await respond(requests[0], "Outdated day");
