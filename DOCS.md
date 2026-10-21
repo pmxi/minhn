@@ -14,10 +14,9 @@ MINHN is a minimum Hacker News viewer.
 
 ## Run
 
-Generate the ranking snapshot with Python 3.9+ (no third-party dependencies), then serve the static app from `src`.
+Serve the static app from `src`. There is no build step or dependency installation.
 
 ```bash
-python3 scripts/build_rankings.py
 python3 -m http.server 8000 --directory src
 ```
 
@@ -26,7 +25,7 @@ Then open [http://localhost:8000](http://localhost:8000).
 ## Deploy to GitHub Pages
 
 This repo includes a GitHub Actions workflow at
-`.github/workflows/deploy.yml` that tests, generates rankings, and publishes this static site on pushes to `master`, manually, and at minutes 7, 27, and 47 of each hour. Scheduled runs first check the published snapshot and skip the build/deploy if it is less than 50 minutes old and already includes the current Pacific day. Pushes and manual runs always rebuild. The extra trigger opportunities reduce the impact of missed events, but GitHub may still delay or drop scheduled runs; this is not a guaranteed hourly service. A failed fetch or build prevents deployment, leaving the last successful snapshot live.
+`.github/workflows/deploy.yml` that runs the JavaScript tests and publishes `src` on pushes to `master` or a manual dispatch. There are no scheduled jobs or generated data files.
 
 One-time setup in GitHub:
 
@@ -44,16 +43,19 @@ Uses the public Hacker News search index:
 
 - [HN Search API](https://hn.algolia.com/api)
 
-Implementation detail:
+Implementation details:
 
-- `scripts/build_rankings.py` fetches all stories whose `created_at_i` falls inside each of the latest seven Pacific days (`America/Los_Angeles`). It compares `nbHits` with the returned hit count and recursively splits truncated time windows; Algolia caps queries at 1,000 hits even when `nbPages` reports 1.
-- Stories are sorted by points descending, then submission time descending. Only each day's top 10 (ID, title, and points) are written to `src/rankings.json`, along with the generation time and Pacific dates.
-- The generated file is ignored by Git and included in the Pages deployment artifact. There is no running application server, database, or direct browser request to Algolia.
-- The browser loads the snapshot once and switches days locally. Date navigation follows the snapshot so a delayed refresh cannot offer a day with no published data.
-- Rankings reflect points at the last refresh, not a historical end-of-day score snapshot. The page displays the refresh timestamp and flags snapshots over two hours old. The warning updates while a tab stays open; reload to fetch a newer snapshot.
+- The browser uses `/api/v1/search` with no text query, `tags=story`, Pacific midnight timestamp bounds, and `hitsPerPage=10`. The API ranks by points, then comment count. Rankings are not historical end-of-day snapshots.
+- Ranking happens in the search index before the result limit. Even on days with over 1,000 stories, early high-scoring submissions can appear in the top 10. No pagination or bulk download is needed.
+- Only ID, title, and points are requested, with highlighting disabled to keep responses small.
+- Every day selection (including the already-selected day) and page reload makes a fresh request with `cache: "no-store"`. There is no application cache or automatic polling; the API's own indexing delay can still affect freshness.
+- Pacific midnight bounds are computed separately for each date, accounting for 23- and 25-hour daylight-saving days.
+- Requests that finish after a newer selection cannot overwrite that selection. Failed requests show an error and can be retried by selecting the day again.
 
 ## Tests
 
+Use Node.js 24; no packages are required.
+
 ```bash
-python3 -m unittest discover -s tests -v
+node --test tests/*.test.mjs
 ```

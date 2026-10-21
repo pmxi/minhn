@@ -1,29 +1,13 @@
-const PACIFIC_TIME_ZONE = "America/Los_Angeles";
+import { pacificDate, shiftDate, fetchStories } from "./stories.mjs";
+
 const dateNav = document.getElementById("dateNav");
 const windowLabel = document.getElementById("windowLabel");
 const statusText = document.getElementById("status");
-const updatedText = document.getElementById("updated");
 const headlinesList = document.getElementById("headlines");
-let rankingDays = new Map();
-let generatedAt = null;
-
-function updateFreshnessLabel() {
-  if (!generatedAt) return;
-  const updated = new Intl.DateTimeFormat("en-US", {
-    timeZone: PACIFIC_TIME_ZONE,
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(generatedAt));
-  const delayed = Date.now() - new Date(generatedAt).getTime() >= 2 * 60 * 60 * 1000;
-  updatedText.textContent = `Updated ${updated} PT · ${delayed
-    ? "This snapshot is over 2 hours old. Reload to check for updates."
-    : "Updates scheduled about hourly"}`;
-}
+let latestRequest = 0;
 
 function dateLabel(dateValue, options) {
-  // The dates in the snapshot are already Pacific calendar dates. Format at
+  // These are Pacific calendar dates. Format at
   // UTC noon to preserve that date regardless of the reader's time zone.
   return new Intl.DateTimeFormat("en-US", { ...options, timeZone: "UTC" })
     .format(new Date(`${dateValue}T12:00:00Z`));
@@ -31,7 +15,7 @@ function dateLabel(dateValue, options) {
 
 function buildDateLinks(days) {
   dateNav.textContent = "";
-  for (const { date } of days) {
+  for (const date of days) {
     const link = document.createElement("a");
     link.href = "#";
     link.dataset.date = date;
@@ -86,42 +70,39 @@ function formatPointsLabel(points) {
   return `${points} ${points === 1 ? "point" : "points"}`;
 }
 
-function showDay(dateValue) {
-  const stories = rankingDays.get(dateValue);
-  if (!stories) return;
-  setActiveDateLink(dateValue);
-  const label = dateLabel(dateValue, { weekday: "short", month: "short", day: "numeric" });
+async function showDay(date) {
+  const request = ++latestRequest;
+  setActiveDateLink(date);
+  const label = dateLabel(date, { weekday: "short", month: "short", day: "numeric" });
   windowLabel.textContent = `Top 10 by points for ${label} (PT)`;
-  renderHeadlines(stories);
+  statusText.textContent = "Loading ranked stories...";
+  renderHeadlines([], { showEmpty: false });
+  try {
+    const stories = await fetchStories(date);
+    // A slower response for a previously selected day must not replace the
+    // current selection, including when the user selects the same day again.
+    if (request !== latestRequest) return;
+    renderHeadlines(stories);
+    statusText.textContent = "";
+  } catch (error) {
+    if (request !== latestRequest) return;
+    statusText.textContent = error instanceof Error ? error.message : "Failed to load stories.";
+  }
+}
+
+function refreshDateLinks() {
+  const today = pacificDate();
+  buildDateLinks(Array.from({ length: 7 }, (_, index) => shiftDate(today, index - 6)));
+  return today;
 }
 
 dateNav.addEventListener("click", (event) => {
   const link = event.target.closest("a[data-date]");
   if (!link) return;
   event.preventDefault();
-  showDay(link.dataset.date);
+  const date = link.dataset.date;
+  refreshDateLinks();
+  showDay(date);
 });
 
-async function loadRankings() {
-  statusText.textContent = "Loading ranked stories...";
-  const response = await fetch("rankings.json", { cache: "no-cache" });
-  if (!response.ok) throw new Error("Unable to load rankings. Please try again later.");
-  const snapshot = await response.json();
-  if (!Array.isArray(snapshot.days) || !snapshot.days.length) {
-    throw new Error("Rankings are unavailable. Please try again later.");
-  }
-  rankingDays = new Map(snapshot.days.map(({ date, stories }) => [date, stories]));
-  buildDateLinks(snapshot.days);
-  generatedAt = snapshot.generatedAt;
-  updateFreshnessLabel();
-  statusText.textContent = "";
-  // Use the latest published day, including when a scheduled refresh is late.
-  showDay(snapshot.days[snapshot.days.length - 1].date);
-}
-
-loadRankings().catch((error) => {
-  statusText.textContent = error instanceof Error ? error.message : "Failed to load rankings.";
-});
-
-// Keep the age warning accurate even when a reader leaves the tab open.
-setInterval(updateFreshnessLabel, 60 * 1000);
+showDay(refreshDateLinks());
