@@ -9,14 +9,15 @@ MINHN is a minimum Hacker News viewer.
 - Single page only.
 - Shows only a list of links to Hacker News discussion pages with point totals.
 - No comment counts, author names, or other metadata.
-- Displays up to 10 stories from a fixed 24-hour window (midnight-to-midnight, Pacific Time), ranked by points descending.
+- Displays up to 10 stories from each midnight-to-midnight Pacific calendar day, ranked by points descending. DST transition days contain 23 or 25 hours.
 - Date selection is a plain horizontal row of day links for the latest 7 PT days, not a date picker.
 
 ## Run
 
-Because this is a static app, use any simple web server from the repo root and point it at `src`.
+Generate the ranking snapshot with Python 3.9+ (no third-party dependencies), then serve the static app from `src`.
 
 ```bash
+python3 scripts/build_rankings.py
 python3 -m http.server 8000 --directory src
 ```
 
@@ -25,7 +26,7 @@ Then open [http://localhost:8000](http://localhost:8000).
 ## Deploy to GitHub Pages
 
 This repo includes a GitHub Actions workflow at
-`.github/workflows/deploy.yml` that publishes this static site.
+`.github/workflows/deploy.yml` that tests, generates rankings, and publishes this static site on pushes to `master`, manually, and hourly at minute 17. Scheduled runs can be delayed by GitHub. A failed fetch or build prevents deployment, leaving the last successful snapshot live.
 
 One-time setup in GitHub:
 
@@ -45,5 +46,14 @@ Uses the public Hacker News search index:
 
 Implementation detail:
 
-- MINHN fetches all stories whose `created_at_i` falls inside the selected fixed day window in Pacific Time (`America/Los_Angeles`, with DST handled automatically), sorts them by `points` descending, and displays the top 10.
-- Rankings reflect the stories' current HN points, not a historical end-of-day score snapshot.
+- `scripts/build_rankings.py` fetches all stories whose `created_at_i` falls inside each of the latest seven Pacific days (`America/Los_Angeles`). It compares `nbHits` with the returned hit count and recursively splits truncated time windows; Algolia caps queries at 1,000 hits even when `nbPages` reports 1.
+- Stories are sorted by points descending, then submission time descending. Only each day's top 10 (ID, title, and points) are written to `src/rankings.json`, along with the generation time and Pacific dates.
+- The generated file is ignored by Git and included in the Pages deployment artifact. There is no running application server, database, or direct browser request to Algolia.
+- The browser loads the snapshot once and switches days locally. Date navigation follows the snapshot so a delayed refresh cannot offer a day with no published data.
+- Rankings reflect points at the last refresh, not a historical end-of-day score snapshot. The page displays the refresh timestamp.
+
+## Tests
+
+```bash
+python3 -m unittest discover -s tests -v
+```

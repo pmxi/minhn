@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - master
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
@@ -27,6 +30,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Test ranking generation
+        run: python -m unittest discover -s tests -v
+
+      - name: Build shared rankings
+        run: python scripts/build_rankings.py
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

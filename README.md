@@ -2,8 +2,8 @@
 
 [https://pmxi.github.io/minhn/](https://pmxi.github.io/minhn/)
 
-min(HN) is designed to be used at most once a day. It displays the 10 highest-point Hacker News stories submitted in each fixed 24-hour Pacific Time window. This is not configurable.
+min(HN) is designed to be used at most once a day. It displays the 10 highest-point Hacker News stories submitted in each Pacific calendar day. This is not configurable.
 
-It ranks stories by their current HN points, so very recent days can still move as votes continue to come in.
+GitHub Actions refreshes all seven days hourly and publishes one small ranking snapshot to GitHub Pages. Browsers fetch that file once; switching days requires no additional requests. Rankings reflect points at the last refresh, so recent days can still move as votes continue to come in.
 
 by Paras
